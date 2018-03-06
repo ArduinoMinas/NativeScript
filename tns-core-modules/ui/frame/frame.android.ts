@@ -176,23 +176,22 @@ export class Frame extends FrameBase {
         }
     }
 
-    onUnloaded(){
-        if(this._currentEntry && this._currentEntry.fragment){
-            console.log("?!?@# ===> removing fragment: " + this._currentEntry.fragmentTag);
-
+    onUnloaded() {
+        if (this._currentEntry && this._currentEntry.fragment) {
             const manager: android.app.FragmentManager = this._getFragmentManager();
-            
+
             const transaction = manager.beginTransaction();
             transaction.remove(this._currentEntry.fragment);
             transaction.commitAllowingStateLoss();
+
+            this._currentEntry.fragment = null;
+            this._currentEntry.fragmentTag = null;
         }
 
         super.onUnloaded();
     }
 
     private createFragment(backstackEntry: BackstackEntry, fragmentTag: string): android.app.Fragment {
-        console.log("?!?@# ===> creating fragment: " + fragmentTag);
-        
         ensureFragmentClass();
         const newFragment = new fragmentClass();
         const args = new android.os.Bundle();
@@ -585,8 +584,6 @@ function findPageForFragment(fragment: android.app.Fragment, frame: Frame) {
         callbacks.entry = entry;
         entry.fragment = fragment;
         _updateTransitions(entry);
-    } else {
-        throw new Error(`Could not find a page for ${fragmentTag}.`);
     }
 }
 
@@ -695,6 +692,15 @@ class FragmentCallbacksImplementation implements AndroidFragmentCallbacks {
         }
 
         const entry = this.entry;
+
+        if (!entry) {
+            // On app suspend the Frames that are unloaded destroy their fragments after
+            // save instance state and on resume these fragments are recreated. In such cases
+            // we won't find an entry for these fragments and will return null as their content
+            // making them non UI fragments.
+            return null;
+        }
+
         const page = entry.resolvedPage;
         const frame = this.frame;
         if (page.parent === frame) {
@@ -719,7 +725,7 @@ class FragmentCallbacksImplementation implements AndroidFragmentCallbacks {
         // created before Tab loads its items.
         // TODO: addCheck if the fragment is visible so we don't load pages
         // that are not in the selectedIndex of the Tab!!!!!!
-        if (!page.isLoaded) {
+        if (frame.isLoaded && !page.isLoaded) {
             page.callLoaded();
         }
 
